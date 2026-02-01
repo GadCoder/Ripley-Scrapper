@@ -13,15 +13,13 @@ logger = logging.getLogger(__name__)
 class GroupingValidator:
     """Validates product grouping quality"""
 
-    def __init__(self, gemini_client=None, verbose: bool = True):
+    def __init__(self, verbose: bool = True):
         """
         Initialize validator
 
         Args:
-            gemini_client: Optional GeminiClient for LLM-based validation
             verbose: Enable detailed logging
         """
-        self.gemini_client = gemini_client
         self.verbose = verbose
 
     def validate_hierarchy(self, hierarchy: Dict, sample_rate: float = 0.2) -> Dict:

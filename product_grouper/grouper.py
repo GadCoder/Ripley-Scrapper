@@ -3,7 +3,7 @@ Product Grouper - Main Orchestrator
 
 Coordinates the entire product grouping workflow:
 1. Load products from JSON
-2. Extract attributes using Gemini API
+2. Extract attributes using regex patterns
 3. Build hierarchical structure
 4. Save results
 """
@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Optional, Dict
 
-from .gemini_client import GeminiClient
+from .regex_extractor import RegexExtractor
 from .hierarchy_builder import HierarchyBuilder
 
 
@@ -29,26 +29,33 @@ class ProductGrouper:
 
     def __init__(
         self,
-        api_key: str,
-        cache_file: Optional[str] = ".grouping_cache.json",
         verbose: bool = True,
+        # Deprecated parameters kept for backward compatibility
+        api_key: Optional[str] = None,
+        cache_file: Optional[str] = None,
     ):
         """
         Initialize Product Grouper
 
         Args:
-            api_key: Google Gemini API key
-            cache_file: Path to cache file
             verbose: Enable detailed logging and progress bars
+            api_key: Deprecated - no longer needed (kept for backward compatibility)
+            cache_file: Deprecated - no longer needed (kept for backward compatibility)
         """
-        self.api_key = api_key
-        self.cache_file = cache_file
         self.verbose = verbose
 
+        # Log deprecation warnings if old params are used
+        if api_key:
+            logger.warning(
+                "api_key parameter is deprecated. Regex extraction doesn't require an API key."
+            )
+        if cache_file:
+            logger.warning(
+                "cache_file parameter is deprecated. Regex extraction is instant and doesn't need caching."
+            )
+
         # Initialize components
-        self.gemini_client = GeminiClient(
-            api_key=api_key, cache_file=cache_file, verbose=verbose
-        )
+        self.extractor = RegexExtractor(verbose=verbose)
         self.hierarchy_builder = HierarchyBuilder(verbose=verbose)
 
         # Stats
@@ -103,13 +110,11 @@ class ProductGrouper:
         if dry_run:
             return self._dry_run_estimate(products, batch_size)
 
-        # Step 2: Extract attributes using Gemini
+        # Step 2: Extract attributes using regex
         if self.verbose:
-            logger.info("\n[2/4] Extracting attributes with Gemini...")
+            logger.info("\n[2/4] Extracting attributes with regex...")
 
-        products_with_attrs = self.gemini_client.extract_attributes_batch(
-            products, batch_size=batch_size
-        )
+        products_with_attrs = self.extractor.extract_attributes_batch(products)
 
         # Step 3: Build hierarchy
         if self.verbose:
@@ -119,14 +124,15 @@ class ProductGrouper:
             products_with_attrs, confidence_threshold=confidence_threshold
         )
 
-        # Add Gemini stats to metadata
-        gemini_stats = self.gemini_client.get_stats()
+        # Add extraction stats to metadata
+        extractor_stats = self.extractor.get_stats()
         hierarchy["metadata"].update(
             {
-                "gemini_api_calls": gemini_stats["total_api_calls"],
-                "gemini_tokens_used": gemini_stats["total_tokens_used"],
-                "estimated_cost_usd": gemini_stats["estimated_cost_usd"],
-                "cache_hits": gemini_stats["cache_hits"],
+                "extraction_method": "regex",
+                "successful_extractions": extractor_stats["successful_extractions"],
+                "partial_extractions": extractor_stats["partial_extractions"],
+                "failed_extractions": extractor_stats["failed_extractions"],
+                "extraction_success_rate": extractor_stats["success_rate"],
             }
         )
 
@@ -179,25 +185,19 @@ class ProductGrouper:
 
     def _dry_run_estimate(self, products: list, batch_size: int) -> Dict:
         """Perform dry run cost estimation"""
-        estimate = self.gemini_client.estimate_cost(len(products), batch_size)
+        estimate = self.extractor.estimate_cost(len(products), batch_size)
 
         if self.verbose:
             logger.info("\n" + "=" * 60)
-            logger.info("DRY RUN - Cost Estimation")
+            logger.info("DRY RUN - Estimation (Regex-based extraction)")
             logger.info("=" * 60)
             logger.info(f"Products:           {estimate['num_products']}")
-            logger.info(f"Batches:            {estimate['num_batches']}")
-            logger.info(f"Est. Input Tokens:  {estimate['estimated_input_tokens']:,}")
-            logger.info(f"Est. Output Tokens: {estimate['estimated_output_tokens']:,}")
-            logger.info(f"Est. Total Tokens:  {estimate['estimated_total_tokens']:,}")
-            logger.info(
-                f"Est. Cost:          ${estimate['estimated_cost_usd']:.4f} USD"
-            )
             logger.info(
                 f"Est. Time:          {estimate['estimated_time_minutes']} minutes"
             )
+            logger.info(f"Est. Cost:          $0.00 USD (regex is free!)")
             logger.info("=" * 60)
-            logger.info("\nNote: Actual cost may vary based on response length")
+            logger.info("\nNote: Regex extraction is instant and free")
             logger.info("Run without --dry-run to proceed with grouping")
 
         return estimate
@@ -224,13 +224,11 @@ class ProductGrouper:
         logger.info(f"Models:                {metadata['total_models']}")
         logger.info("")
         logger.info(f"Processing Time:       {metadata['processing_time_seconds']}s")
-        logger.info(f"API Calls:             {metadata.get('gemini_api_calls', 0)}")
-        logger.info(f"Cache Hits:            {metadata.get('cache_hits', 0)}")
         logger.info(
-            f"Tokens Used:           ~{metadata.get('gemini_tokens_used', 0):,}"
+            f"Extraction Method:     {metadata.get('extraction_method', 'regex')}"
         )
         logger.info(
-            f"Total Cost:            ${metadata.get('estimated_cost_usd', 0):.4f}"
+            f"Success Rate:          {metadata.get('extraction_success_rate', 0)}%"
         )
         logger.info("=" * 60)
         logger.info("\nDone!")

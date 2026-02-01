@@ -65,17 +65,9 @@ class ProductAnalytics:
 
         lines.append("")
         lines.append(
-            f"Processing Time:             {metadata.get('processing_time_seconds', 0)}s"
+            f"Processing Time:             {metadata.get('processing_time_seconds', 0):.2f}s"
         )
-        lines.append(
-            f"Gemini API Calls:            {metadata.get('gemini_api_calls', 0)}"
-        )
-        lines.append(
-            f"Tokens Used:                 {metadata.get('gemini_tokens_used', 0):,}"
-        )
-        lines.append(
-            f"Estimated Cost:              ${metadata.get('estimated_cost_usd', 0):.4f} USD"
-        )
+        lines.append(f"Extraction Method:           Regex-based (offline)")
         lines.append("")
 
         # Brands breakdown

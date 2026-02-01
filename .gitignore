@@ -212,6 +212,5 @@ __marimo__/
 *.csv
 page_debug.html
 
-# Grouper cache
-.grouping_cache.json
+# Scraper checkpoints
 checkpoint_*.json
